@@ -11,7 +11,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     password = models.CharField(_('password'), max_length=128)
     department = models.ForeignKey('Department', on_delete=models.CASCADE, null=True, blank=True, related_name='Filial')
     date_joined = models.DateTimeField(default=timezone.now, null=True)
-    is_viewer = models.BooleanField(default=True)
+    is_viewer = models.BooleanField(default=False)
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
