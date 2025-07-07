@@ -25,8 +25,8 @@ SECRET_KEY = 'django-insecure-4c-sahbsucwb5k&9keu5tgi)6ig2&ob_ct-c4l*o3mwmfiw$=a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['10.25.8.116', 'localhost', '127.0.0.1']
-
+# ALLOWED_HOSTS = ['globalcapital.kz', 'www.globalcapital.kz', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
 # Application definition
 
