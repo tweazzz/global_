@@ -26,29 +26,31 @@ class CanOnlyAccountantUpdateIsPaid(permissions.BasePermission):
         method = request.method
         updated_fields = set(request.data.keys())
 
-        # Безопасные методы разрешены всем аутентифицированным
         if method in permissions.SAFE_METHODS:
             return True
 
         if user.role == 'admin':
-            # Админ может всё, кроме изменения is_paid
             if 'is_paid' in updated_fields:
                 raise PermissionDenied('Admins cannot modify is_paid.')
             return True
 
         if user.role == 'accountant':
-            # Бухгалтер может только PATCH/PUT is_paid
             if method in ['PUT', 'PATCH']:
                 if updated_fields.issubset({'is_paid'}):
                     return True
                 raise PermissionDenied('Accountants can only modify is_paid.')
-            if method == 'DELETE' or method == 'POST':
+            if method in ['DELETE', 'POST']:
                 raise PermissionDenied('Accountants cannot delete or create.')
             return False
 
-        # Остальные роли — только безопасные методы
-        raise PermissionDenied('Only read access is allowed for your role.')
+        if user.role == 'employee':
+            if obj.executor != user:
+                raise PermissionDenied('Employees can only modify or delete their own records.')
+            if 'is_paid' in updated_fields:
+                raise PermissionDenied('Employees cannot modify is_paid.')
+            return method in ['PUT', 'PATCH', 'DELETE']
 
+        return False
 
 
 class IsAdminRoleOrReadOnly(permissions.BasePermission):

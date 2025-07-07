@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'auth_user',
     'reestr',
+    'django_filters',
     'rest_framework',
     'django.contrib.admin',
     'django.contrib.auth',
