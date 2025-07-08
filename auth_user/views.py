@@ -40,3 +40,4 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAdminRoleOrReadOnly]
+    pagination_class = None
