@@ -27,14 +27,14 @@ class UserReadSerializer(serializers.ModelSerializer):
     department = DepartmentSerializer()
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'username', 'role', 'department']
+        fields = ['id', 'full_name', 'username', 'role', 'department', 'is_active']
 
 
 class UserWriteSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     class Meta:
         model = User
-        exclude = ['is_superuser', 'is_staff', 'is_active', 'groups', 'user_permissions']
+        exclude = ['is_superuser', 'is_staff', 'groups', 'user_permissions']
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
@@ -44,12 +44,18 @@ class UserWriteSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
+    def update(self, instance, validated_data):
+        request = self.context.get('request')
+        if 'is_active' in validated_data and getattr(request.user, 'role', None) != 'admin':
+            validated_data.pop('is_active')
+        return super().update(instance, validated_data)
+
 
 class UserMeSerializer(serializers.ModelSerializer):
     department = DepartmentSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'username', 'role', 'department']
+        fields = ['id', 'full_name', 'username', 'role', 'department', 'is_active']
 
 
