@@ -8,7 +8,7 @@ class Command(BaseCommand):
     help = 'Импорт данных в модель Reestr из Excel-файла'
 
     def handle(self, *args, **kwargs):
-        file_path = 'C:/Users/KONARBAK/Desktop/pzz/zzz/reestr/management/commands/Реестр.xlsx'
+        file_path = '/var/www/globalcapital.kz/global_/reestr/management/commands/Реестр.xlsx'
 
         if not os.path.exists(file_path):
             self.stdout.write(self.style.ERROR(f'Файл {file_path} не найден'))
