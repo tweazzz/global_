@@ -16,6 +16,7 @@ class ReestrViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CanOnlyAccountantUpdateIsPaid]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = ReestrFilter
+    ordering = ['-created_at']
     ordering_fields = ['created_at', 'contract_amount', 'actual_payment']
 
     def get_queryset(self):
@@ -49,7 +50,27 @@ class ReestrViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(contract_date__gte=start_date)
         if end_date:
             queryset = queryset.filter(contract_date__lte=end_date)
-
+        COLUMN_MAPPING = {
+            'department__dep_name': 'Филиал',
+            'iin_bin':              'ИИН/БИН',
+            'customer_name':        'Наименование заказчика',
+            'payer':                'Плательщик',
+            'object_name':          'Наименование объекта оценки',
+            'object_address':       'Адрес объекта оценки',
+            'contract_number':      '№ Договора',
+            'contract_date':        'Дата договора',
+            'contract_amount':      'Сумма по договору',
+            'actual_payment':       'Фактическая оплата',
+            'evaluation_count':     'Кол-во оценок',
+            'bank_name':            'Наименование Банка',
+            'cost':                 'Стоимость',
+            'area':                 'Площадь, кв.м.',
+            'cost_per_sqm':         'Стоимость за кв.м.',
+            'title_number':         'Номер титулки',
+            'is_offsite':           'Выездной',
+            'executor__full_name':  'Исполнитель',
+            'is_paid':              'Статус оплаты',
+        }
         data = queryset.values(
             'department__dep_name', 'iin_bin', 'customer_name', 'payer',
             'object_name', 'object_address', 'contract_number', 'contract_date',
@@ -60,7 +81,9 @@ class ReestrViewSet(viewsets.ModelViewSet):
         )
 
         df = pd.DataFrame(data)
-
+        df.rename(columns=COLUMN_MAPPING, inplace=True)
+        df['Статус оплаты'] = df['Статус оплаты'].map({True: 'Оплачено', False: 'Не оплачено'})
+        
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         filename = f"Реестр_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         response['Content-Disposition'] = f'attachment; filename={filename}'
