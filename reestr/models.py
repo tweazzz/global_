@@ -9,7 +9,7 @@ class Reestr(models.Model):
     payer = models.CharField(max_length=255, db_index=True, verbose_name="Плательщик")
     object_name = models.CharField(max_length=255, db_index=True, verbose_name="Наименование объекта оценки")
     object_address = models.CharField(max_length=255, db_index=True, verbose_name="Адрес объекта оценки")
-    contract_number = models.CharField(max_length=100, unique=True, db_index=True, verbose_name="№ Договора")
+    contract_number = models.CharField(max_length=100, db_index=True, verbose_name="№ Договора")
     contract_date = models.DateField(db_index=True, verbose_name="Дата договора")
     contract_amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Сумма по договору")
     actual_payment = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Фактическая оплата")
