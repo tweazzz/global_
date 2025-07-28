@@ -11,6 +11,9 @@ from .models import Reestr
 from .serializers import ReestrReadSerializer, ReestrWriteSerializer
 from .filters import ReestrFilter
 from auth_user.permission import CanOnlyAccountantUpdateIsPaid
+from rest_framework.parsers import MultiPartParser
+from rest_framework import status
+from rest_framework.views import APIView
 
 class ReestrViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CanOnlyAccountantUpdateIsPaid]
@@ -92,3 +95,68 @@ class ReestrViewSet(viewsets.ModelViewSet):
             df.to_excel(writer, index=False, sheet_name='Reestr')
 
         return response
+
+
+
+
+class ExcelUploadView(APIView):
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, format=None):
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response({'detail': 'Файл не прислан'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+        except Exception as e:
+            return Response({'detail': f'Не удалось прочитать Excel: {e}'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Проходим по строкам, начиная с Excel-номера строки 2 (т.к. 1 — заголовки)
+        for idx, row in enumerate(df.to_dict(orient='records'), start=2):
+            # Список полей и их преобразований
+            try:
+                department_id     = int(row['Филиал'])
+            except Exception as e:
+                return Response({'detail': f"Ошибка в строке {idx}, столбец 'Филиал': {e}"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                iin_bin           = str(row['ИИН/БИН'])[:12]
+            except Exception as e:
+                return Response({'detail': f"Ошибка в строке {idx}, столбец 'ИИН/БИН': {e}"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            # … повторяем для всех нужных столбцов …
+
+            try:
+                contract_amount   = float(row['Сумма по договору'])
+            except Exception as e:
+                return Response({'detail': f"Ошибка в строке {idx}, столбец 'Сумма по договору': {e}"},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            # Если все поля прошли валидацию — создаём запись
+            Reestr.objects.create(
+                department_id=department_id,
+                iin_bin=iin_bin,
+                customer_name=row['Наименование заказчика'],
+                payer=row['Плательщик'],
+                object_name=row['Наименование объекта оценки'],
+                object_address=row['Адрес объекта оценки'],
+                contract_number=row['Номер договора'],
+                contract_date=row['Дата договора'],
+                contract_amount=contract_amount,
+                actual_payment=float(row['Фактическая оплата']) if not pd.isna(row['Фактическая оплата']) else 0.0,
+                evaluation_count=int(row['Количество оценок']) if not pd.isna(row['Количество оценок']) else 0,
+                bank_name=row['Наименование Банка'],
+                cost=float(row['Стоимость']),
+                area=float(row['Площадь кв.м.']),
+                cost_per_sqm=float(row['Стоимость за кв.м.']) if not pd.isna(row['Стоимость за кв.м.']) else None,
+                title_number=row['Номер титулки'],
+                is_offsite=row['Выездной'],
+                executor_id=int(row['Исполнитель']) if not pd.isna(row['Исполнитель']) else None,
+                is_paid=bool(row['Фактическая оплата']) if not pd.isna(row['Фактическая оплата']) else False
+            )
+
+        return Response({'status': 'Импорт завершён успешно'})
