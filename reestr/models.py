@@ -23,6 +23,7 @@ class Reestr(models.Model):
     executor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, db_index=True, verbose_name="Исполнитель")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Дата и время внесения")
     is_paid = models.BooleanField(default=False, db_index=True, verbose_name="Статус оплаты")
+    company = models.CharField(max_length=255, db_index=True, verbose_name="Компания")
 
     class Meta:
         verbose_name_plural = "Реестр"
