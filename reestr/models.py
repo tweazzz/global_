@@ -12,6 +12,7 @@ class Reestr(models.Model):
     contract_number = models.CharField(max_length=100, db_index=True, verbose_name="№ Договора")
     contract_date = models.DateField(db_index=True, verbose_name="Дата договора")
     contract_amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Сумма по договору")
+    payment_date = models.DateField(null=True, blank=True, db_index=True, verbose_name="Дата оплаты")
     actual_payment = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Фактическая оплата")
     evaluation_count = models.PositiveIntegerField(verbose_name="Кол-во оценок")
     bank_name = models.CharField(max_length=255, db_index=True, verbose_name="Наименование Банка")

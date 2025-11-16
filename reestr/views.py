@@ -65,6 +65,7 @@ class ReestrViewSet(viewsets.ModelViewSet):
             'contract_number':      '№ Договора',
             'contract_date':        'Дата договора',
             'contract_amount':      'Сумма по договору',
+            'payment_date':         'Дата оплаты',            # <-- добавлено
             'actual_payment':       'Фактическая оплата',
             'evaluation_count':     'Кол-во оценок',
             'bank_name':            'Наименование Банка',
@@ -78,22 +79,36 @@ class ReestrViewSet(viewsets.ModelViewSet):
             'company':              'Компания',
         }
 
-        # включаем company в values
+        # включаем payment_date в values
         data = queryset.values(
             'department__dep_name', 'iin_bin', 'customer_name', 'payer',
             'object_name', 'object_address', 'contract_number', 'contract_date',
-            'contract_amount', 'actual_payment', 'evaluation_count',
+            'contract_amount', 'payment_date', 'actual_payment', 'evaluation_count',
             'bank_name', 'cost', 'area', 'cost_per_sqm',
             'title_number', 'is_offsite', 'executor__full_name',
             'is_paid', 'company'
         )
 
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(list(data))
+
         # Переименуем столбцы на русские заголовки
         df.rename(columns=COLUMN_MAPPING, inplace=True)
+
+        # Форматируем колонки с датами в DD.MM.YYYY (если есть)
+        if 'Дата договора' in df.columns:
+            df['Дата договора'] = pd.to_datetime(df['Дата договора'], errors='coerce').dt.strftime('%d.%m.%Y')
+            df['Дата договора'] = df['Дата договора'].fillna('')
+
+        if 'Дата оплаты' in df.columns:
+            df['Дата оплаты'] = pd.to_datetime(df['Дата оплаты'], errors='coerce').dt.strftime('%d.%m.%Y')
+            df['Дата оплаты'] = df['Дата оплаты'].fillna('')
+
         # Маппинг статуса оплаты в русские метки
         if 'Статус оплаты' in df.columns:
-            df['Статус оплаты'] = df['Статус оплаты'].map({True: 'Оплачено', False: 'Не оплачено'})
+            df['Статус оплаты'] = df['Статус оплаты'].map({True: 'Оплачено', False: 'Не оплачено'}).fillna('')
+
+        # Опционально: заменить NaN в остальных строках на пустую строку (чтобы в Excel не было NaN)
+        df = df.fillna('')
 
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         filename = f"Реестр_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -127,7 +142,7 @@ class ExcelUploadView(APIView):
             return default
 
         def parse_bool_status(val):
-            if pd.isna(val):
+            if val is None or (isinstance(val, float) and pd.isna(val)):
                 return False
             if isinstance(val, bool):
                 return val
@@ -138,17 +153,36 @@ class ExcelUploadView(APIView):
                 return True
             if s in ('не оплачено', 'неоплачено', 'not paid', 'no', 'false', '0', 'n', 'нет'):
                 return False
-            # попытка привести к числу
             try:
                 return float(s) != 0
             except Exception:
                 return False
 
+        # helper: парсер даты -> возвращает date или None
+        def parse_date(val, dayfirst=False):
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return None
+            # pandas.Timestamp или datetime.date/datetime
+            try:
+                if hasattr(val, 'date') and not isinstance(val, str):
+                    # Timestamp или datetime
+                    return val.date()
+            except Exception:
+                pass
+            # строка/число — пробуем распарсить
+            try:
+                dt = pd.to_datetime(val, dayfirst=dayfirst, errors='coerce')
+                if pd.isna(dt):
+                    return None
+                return dt.date()
+            except Exception:
+                return None
+
         # Проходим по строкам, начиная со строки 2 (Excel)
         for idx, row in enumerate(df.to_dict(orient='records'), start=2):
             try:
-                # department: ожидаем id. Подстраховка — если в файле указано имя, можно будет искать по имени (не реализовано здесь)
-                department_val = get_val(row, 'Филиал', 'department__dep_name')
+                # department: ожидаем id. Если в файле имя — здесь нужно доп.логика.
+                department_val = get_val(row, 'Филиал', 'department__dep_name', 'department')
                 if department_val is None:
                     raise ValueError("пустое значение")
                 department_id = int(department_val)
@@ -175,8 +209,8 @@ class ExcelUploadView(APIView):
             contract_number = get_val(row, '№ Договора', 'Номер договора', 'contract_number', default='')
 
             # contract_date — pandas может вернуть Timestamp или строку
-            contract_date = get_val(row, 'Дата договора', 'contract_date')
-            # Можно добавить дополнительную валидацию/парсинг даты при необходимости
+            contract_date_val = get_val(row, 'Дата договора', 'contract_date')
+            contract_date = parse_date(contract_date_val, dayfirst=False)
 
             try:
                 contract_amount_val = get_val(row, 'Сумма по договору', 'contract_amount')
@@ -191,7 +225,10 @@ class ExcelUploadView(APIView):
 
             # evaluation_count — несколько вариантов заголовков
             eval_count_val = get_val(row, 'Количество оценок', 'Кол-во оценок', 'evaluation_count')
-            evaluation_count = int(eval_count_val) if eval_count_val is not None and not pd.isna(eval_count_val) else 0
+            try:
+                evaluation_count = int(eval_count_val) if eval_count_val is not None and not pd.isna(eval_count_val) else 0
+            except Exception:
+                evaluation_count = 0
 
             bank_name = get_val(row, 'Наименование Банка', 'bank_name', default='')
 
@@ -218,16 +255,23 @@ class ExcelUploadView(APIView):
 
             # Исполнитель: ожидаем id (если хотите поддержку по имени — можно добавить)
             executor_val = get_val(row, 'Исполнитель', 'executor')
-            executor_id = int(executor_val) if executor_val is not None and not pd.isna(executor_val) else None
+            try:
+                executor_id = int(executor_val) if executor_val is not None and not pd.isna(executor_val) else None
+            except Exception:
+                executor_id = None
 
             # Статус оплаты — читаем из столбца "Статус оплаты" (или "Оплачено")
             status_val = get_val(row, 'Статус оплаты', 'Оплачено', 'is_paid', default=None)
             is_paid = parse_bool_status(status_val)
 
+            # Новое: дата оплаты (поддерживаем несколько названий колонок)
+            payment_date_val = get_val(row, 'Дата оплаты', 'payment_date', 'payment')
+            payment_date = parse_date(payment_date_val, dayfirst=False)
+
             # Компания
             company = get_val(row, 'Компания', 'company', default=None)
 
-            # Создаём запись
+            # Создаём запись (включая payment_date)
             try:
                 Reestr.objects.create(
                     department_id=department_id,
@@ -239,6 +283,7 @@ class ExcelUploadView(APIView):
                     contract_number=contract_number,
                     contract_date=contract_date,
                     contract_amount=contract_amount,
+                    payment_date=payment_date,           # <-- добавлено поле "Дата оплаты"
                     actual_payment=actual_payment,
                     evaluation_count=evaluation_count,
                     bank_name=bank_name,
